@@ -64,6 +64,9 @@ common common-options
     directory,
     filepath,
     file-io,
+    effectful,
+    effectful-core,
+    effectful-th,
 
   ghc-options:
     -Wall
