@@ -1,8 +1,7 @@
 module Main (main) where
 
-import qualified ProjectGenerator (someFunc)
+import ProjectGenerator (boot)
 
 main :: IO ()
-main = do
-  putStrLn "Hello, Haskell!"
-  ProjectGenerator.someFunc
+main = boot
+

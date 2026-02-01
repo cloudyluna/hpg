@@ -127,6 +127,7 @@ common common-options
     OverloadedLabels
     OverloadedRecordDot
     OverloadedStrings
+    MultilineStrings
     RecordWildCards
     ScopedTypeVariables
     StandaloneDeriving
