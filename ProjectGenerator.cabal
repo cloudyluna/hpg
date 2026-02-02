@@ -67,6 +67,8 @@ common common-options
     effectful,
     effectful-core,
     effectful-th,
+    stache,
+    optparse-applicative,
 
   ghc-options:
     -Wall
