@@ -25,6 +25,7 @@
           with pkgs;
           pkgs.mkShell rec {
             nativeBuildInputs = [
+              gnumake
               upx
 
               ghciwatch

@@ -3,12 +3,11 @@ module ProjectGenerator (boot) where
 import Data.Aeson (Value, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString (StrictByteString)
-import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Default (Default (def))
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Lazy qualified as TL
+import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as TL
 import Effectful
 import Effectful.Console.ByteString (Console)
@@ -18,25 +17,23 @@ import Effectful.FileSystem qualified as EFS
 import Effectful.FileSystem.IO.ByteString qualified as EFS
 import System.FilePath ((<.>), (</>))
 import Text.Mustache qualified as M
+import Prelude hiding (getLine)
 
 
 boot :: IO ()
-boot = runEff . EFS.runFileSystem $ do
-    let project =
-            mkProject
-                "ewoos2"
-                "This is pretty fun"
-                "Momo"
-                "luna.cloudberry@gmail.com"
-                "BSD-3-Clause"
-        dataDir = "data"
+boot = runEff . EFS.runFileSystem . Console.runConsole $ do
+    project <- promptUserProject
+
+    let dataDir = "data"
         targetDir = T.unpack project.name
+
+    EFS.createDirectoryIfMissing True targetDir
 
     generateLib project
     generateTest project
     generateProjectCabal project
+    generateLicense project
 
-    
     EFS.copyFile (dataDir </> "cabal.project") (targetDir </> "cabal.project")
     EFS.copyFile (dataDir </> "fourmolu.yaml") (targetDir </> "fourmolu.yaml")
     EFS.copyFile (dataDir </> "hie.yaml") (targetDir </> "hie.yaml")
@@ -50,12 +47,11 @@ data Project = Project
     , synopsis :: Text
     , author :: Text
     , authorEmail :: Text
-    , license :: Text
     }
     deriving stock (Eq, Show)
 
 
-mkProject :: Text -> Text -> Text -> Text -> Text -> Project
+mkProject :: Text -> Text -> Text -> Text -> Project
 mkProject name synopsis = Project (T.toTitle name) (T.toTitle synopsis)
 
 
@@ -66,7 +62,6 @@ mkStacheObject project =
         , "synopsis" .= project.synopsis
         , "author" .= project.author
         , "authorEmail" .= project.authorEmail
-        , "license" .= project.license
         ]
 
 
@@ -77,8 +72,23 @@ instance Default Project where
             , synopsis = "My fun Haskell project"
             , author = "Momo"
             , authorEmail = "luna.cloudberry@gmail.com"
-            , license = "BSD-3-Clause"
             }
+
+
+promptUserProject :: (Console :> es) => Eff es Project
+promptUserProject = do
+    let getLine = T.decodeLatin1 <$> Console.getLine
+
+    Console.putStr "Project Name: "
+    name <- getLine
+    Console.putStr "Synopsis: "
+    synopsis <- getLine
+    Console.putStr "Author Name: "
+    author <- getLine
+    Console.putStr "Author Email: "
+    authorEmail <- getLine
+
+    pure $ mkProject name synopsis author authorEmail
 
 
 parseTemplate :: (IOE :> es) => FilePath -> Project -> Eff es StrictByteString
@@ -140,3 +150,20 @@ generateProjectCabalFile dirName project = do
     generateTemplate filename project parser
     where
         parser dataDir = parseTemplate $ dataDir </> "project.cabal.mustache"
+
+
+generateLicense :: (FileSystem :> es, IOE :> es) => Project -> Eff es ()
+generateLicense project = do
+    let targetDir = T.unpack project.name
+
+    EFS.createDirectoryIfMissing True targetDir
+    generateLicenseFile targetDir project
+
+
+generateLicenseFile :: (FileSystem :> es, IOE :> es) => FilePath -> Project -> Eff es ()
+generateLicenseFile dirName project = do
+    let filename = dirName </> "LICENSE"
+
+    generateTemplate filename project parser
+    where
+        parser dataDir = parseTemplate $ dataDir </> "license.mustache"

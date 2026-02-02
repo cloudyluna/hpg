@@ -56,17 +56,10 @@ common common-options
   build-depends:
     base ^>=4.22.0.0,
     bytestring,
-    vector,
-    containers,
     text,
-    witch,
     data-default,
-    directory,
     filepath,
-    file-io,
     effectful,
-    effectful-core,
-    effectful-th,
     aeson,
     stache,
 
