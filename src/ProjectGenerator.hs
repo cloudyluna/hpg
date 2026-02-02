@@ -23,9 +23,9 @@ import Prelude hiding (getLine)
 boot :: IO ()
 boot = runEff . EFS.runFileSystem . Console.runConsole $ do
     project <- promptUserProject
+    dataDir <- EFS.getXdgDirectory EFS.XdgData $ "hpg" </> "data"
 
-    let dataDir = "data"
-        targetDir = T.unpack project.name
+    let targetDir = T.unpack project.name
 
     EFS.createDirectoryIfMissing True targetDir
 
