@@ -11,7 +11,7 @@ cabal-version:      3.14
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:               ProjectGenerator
+name:               {{name}}
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards
@@ -24,22 +24,22 @@ version:            0.1.0.0
 
 -- A short (one-line) description of the package.
 synopsis:
-    Generate a minimal Haskell project, suitable for Momo's needs
+    {{synopsis}}
 
 -- A longer description of the package.
 -- description:
 
 -- The license under which the package is released.
-license:            BSD-3-Clause
+license:            {{license}}
 
 -- The file containing the license text.
 license-file:       LICENSE
 
 -- The package author(s).
-author:             momo
+author:             {{author}}
 
 -- An email address to which users can send suggestions, bug reports, and patches.
-maintainer:         luna.cloudberry@gmail.com
+maintainer:         {{authorEmail}}
 
 -- A copyright notice.
 -- copyright:
@@ -58,17 +58,13 @@ common common-options
     bytestring,
     vector,
     containers,
+    unordered-containers,
     text,
     witch,
     data-default,
-    directory,
-    filepath,
-    file-io,
-    effectful,
     effectful-core,
     effectful-th,
-    aeson,
-    stache,
+    effectful,
 
   ghc-options:
     -Wall
@@ -135,6 +131,7 @@ common common-options
     StandaloneDeriving
     TupleSections
     TypeApplications
+    TypeAbstractions
     ViewPatterns
 
 library
@@ -142,7 +139,7 @@ library
     import: common-options
 
     -- Modules exported by the library.
-    exposed-modules:  ProjectGenerator
+    exposed-modules:  {{name}}
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -153,27 +150,7 @@ library
     -- Directories containing source files.
     hs-source-dirs:   src
 
-executable ProjectGenerator
-    -- Import common warning flags.
-    import: common-options
-
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-
-    -- Other library packages from which modules are imported.
-    build-depends:
-        ProjectGenerator
-
-    -- Directories containing source files.
-    hs-source-dirs:   app
-
-test-suite ProjectGenerator-test
+test-suite {{name}}-test
     -- Import common warning flags.
     import: common-options
 
@@ -194,5 +171,7 @@ test-suite ProjectGenerator-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.22.0.0,
-        ProjectGenerator
+        {{name}},
+        hspec,
+        tasty,
+        tasty-hspec,
