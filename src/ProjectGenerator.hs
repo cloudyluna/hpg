@@ -4,7 +4,6 @@ import Data.Aeson (Value, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Default (Default (def))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -15,6 +14,8 @@ import Effectful.Console.ByteString qualified as Console
 import Effectful.FileSystem (FileSystem)
 import Effectful.FileSystem qualified as EFS
 import Effectful.FileSystem.IO.ByteString qualified as EFS
+import Effectful.Reader.Static (Reader)
+import Effectful.Reader.Static qualified as R
 import System.FilePath ((<.>), (</>))
 import Text.Mustache qualified as M
 import Prelude hiding (getLine)
@@ -27,19 +28,34 @@ boot = runEff . EFS.runFileSystem . Console.runConsole $ do
 
     let targetDir = T.unpack project.name
 
-    EFS.createDirectoryIfMissing True targetDir
+    R.runReader @AppEnv (mkAppEnv dataDir targetDir project) $ do
+        generateLib
+        generateTest
+        generateProjectCabal
+        generateLicense
 
-    generateLib project
-    generateTest project
-    generateProjectCabal project
-    generateLicense project
+        EFS.copyFile (dataDir </> "cabal.project") (targetDir </> "cabal.project")
+        EFS.copyFile (dataDir </> "fourmolu.yaml") (targetDir </> "fourmolu.yaml")
+        EFS.copyFile (dataDir </> "hie.yaml") (targetDir </> "hie.yaml")
+        EFS.copyFile (dataDir </> ".gitignore") (targetDir </> ".gitignore")
+        EFS.copyFile (dataDir </> "flake.nix") (targetDir </> "flake.nix")
+        EFS.copyFile (dataDir </> ".envrc") (targetDir </> ".envrc")
 
-    EFS.copyFile (dataDir </> "cabal.project") (targetDir </> "cabal.project")
-    EFS.copyFile (dataDir </> "fourmolu.yaml") (targetDir </> "fourmolu.yaml")
-    EFS.copyFile (dataDir </> "hie.yaml") (targetDir </> "hie.yaml")
-    EFS.copyFile (dataDir </> ".gitignore") (targetDir </> ".gitignore")
-    EFS.copyFile (dataDir </> "flake.nix") (targetDir </> "flake.nix")
-    EFS.copyFile (dataDir </> ".envrc") (targetDir </> ".envrc")
+
+type DataDir = FilePath
+type TargetDir = FilePath
+
+
+data AppEnv = AppEnv
+    { dataDir :: DataDir
+    , targetDir :: TargetDir
+    , project :: Project
+    }
+    deriving stock (Eq, Show)
+
+
+mkAppEnv :: DataDir -> TargetDir -> Project -> AppEnv
+mkAppEnv = AppEnv
 
 
 data Project = Project
@@ -65,16 +81,6 @@ mkStacheObject project =
         ]
 
 
-instance Default Project where
-    def =
-        Project
-            { name = "Project"
-            , synopsis = "My fun Haskell project"
-            , author = "Momo"
-            , authorEmail = "luna.cloudberry@gmail.com"
-            }
-
-
 promptUserProject :: (Console :> es) => Eff es Project
 promptUserProject = do
     let getLine = T.decodeLatin1 <$> Console.getLine
@@ -91,79 +97,63 @@ promptUserProject = do
     pure $ mkProject name synopsis author authorEmail
 
 
-parseTemplate :: (IOE :> es) => FilePath -> Project -> Eff es StrictByteString
-parseTemplate templateFile project = do
+parseTemplate :: (IOE :> es, Reader AppEnv :> es) => FilePath -> Eff es StrictByteString
+parseTemplate templateFile = do
+    env <- R.ask @AppEnv
+
     template <- liftIO $ M.compileMustacheFile templateFile
-    let text = M.renderMustache template $ mkStacheObject project
+    let text = M.renderMustache template $ mkStacheObject env.project
 
     pure . BL.toStrict $ TL.encodeUtf8 text
 
 
-type Parser es = FilePath -> Project -> Eff es StrictByteString
-generateTemplate :: (FileSystem :> es) => FilePath -> Project -> Parser es -> Eff es ()
-generateTemplate targetFile project f = f "data" project >>= EFS.writeFile targetFile
+generateTemplate ::
+    (IOE :> es, FileSystem :> es, Reader AppEnv :> es) => FilePath -> FilePath -> Eff es ()
+generateTemplate sourceFile targetFile = do
+    env <- R.ask @AppEnv
+
+    parseTemplate (env.dataDir </> sourceFile) >>= EFS.writeFile targetFile
 
 
-generateLib :: (FileSystem :> es, IOE :> es) => Project -> Eff es ()
-generateLib project = do
-    let targetDir = T.unpack project.name </> "src"
+generateLib :: (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => Eff es ()
+generateLib = do
+    env <- R.ask @AppEnv
 
-    EFS.createDirectoryIfMissing True targetDir
-    generateLibFile targetDir project
-
-
-generateLibFile :: (FileSystem :> es, IOE :> es) => FilePath -> Project -> Eff es ()
-generateLibFile dirName project = do
-    let filename = dirName </> T.unpack project.name <.> "hs"
-    generateTemplate filename project parser
-    where
-        parser dataDir = parseTemplate $ dataDir </> "lib.mustache"
-
-
-generateTest :: (FileSystem :> es, IOE :> es) => Project -> Eff es ()
-generateTest project = do
-    let targetDir = T.unpack project.name </> "test"
+    let targetDir = env.targetDir </> "src"
+        targetFilename = T.unpack env.project.name <.> "hs"
 
     EFS.createDirectoryIfMissing True targetDir
-    generateTestFile targetDir project
+    generateTemplate "lib.mustache" $ targetDir </> targetFilename
 
 
-generateTestFile :: (FileSystem :> es, IOE :> es) => FilePath -> Project -> Eff es ()
-generateTestFile dirName project = do
-    let filename = dirName </> "Main.hs"
-    generateTemplate filename project parser
-    where
-        parser dataDir = parseTemplate $ dataDir </> "test.mustache"
+generateTest :: (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => Eff es ()
+generateTest = do
+    env <- R.ask @AppEnv
 
-
-generateProjectCabal :: (FileSystem :> es, IOE :> es) => Project -> Eff es ()
-generateProjectCabal project = do
-    let targetDir = T.unpack project.name
+    let targetDir = env.targetDir </> "test"
+        targetFilename = "Main.hs"
 
     EFS.createDirectoryIfMissing True targetDir
-    generateProjectCabalFile targetDir project
+    generateTemplate "test.mustache" $ targetDir </> targetFilename
 
 
-generateProjectCabalFile :: (FileSystem :> es, IOE :> es) => FilePath -> Project -> Eff es ()
-generateProjectCabalFile dirName project = do
-    let filename = dirName </> T.unpack project.name <.> "cabal"
-    generateTemplate filename project parser
-    where
-        parser dataDir = parseTemplate $ dataDir </> "project.cabal.mustache"
+generateProjectCabal :: (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => Eff es ()
+generateProjectCabal = do
+    env <- R.ask @AppEnv
 
-
-generateLicense :: (FileSystem :> es, IOE :> es) => Project -> Eff es ()
-generateLicense project = do
-    let targetDir = T.unpack project.name
+    let targetDir = env.targetDir
+        targetFilename = T.unpack env.project.name <.> "cabal"
 
     EFS.createDirectoryIfMissing True targetDir
-    generateLicenseFile targetDir project
+    generateTemplate "project.cabal.mustache" $ targetDir </> targetFilename
 
 
-generateLicenseFile :: (FileSystem :> es, IOE :> es) => FilePath -> Project -> Eff es ()
-generateLicenseFile dirName project = do
-    let filename = dirName </> "LICENSE"
+generateLicense :: (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => Eff es ()
+generateLicense = do
+    env <- R.ask @AppEnv
 
-    generateTemplate filename project parser
-    where
-        parser dataDir = parseTemplate $ dataDir </> "license.mustache"
+    let targetDir = env.targetDir
+        targetFilename = "LICENSE"
+
+    EFS.createDirectoryIfMissing True targetDir
+    generateTemplate "license.mustache" $ targetDir </> targetFilename

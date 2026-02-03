@@ -57,7 +57,6 @@ common common-options
     base ^>=4.22.0.0,
     bytestring,
     text,
-    data-default,
     filepath,
     effectful,
     aeson,
@@ -146,7 +145,7 @@ library
     -- Directories containing source files.
     hs-source-dirs:   src
 
-executable ProjectGenerator
+executable hpg
     -- Import common warning flags.
     import: common-options
 
