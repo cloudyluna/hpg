@@ -24,7 +24,7 @@ import Prelude hiding (getLine)
 boot :: IO ()
 boot = runEff . EFS.runFileSystem . Console.runConsole $ do
     project <- promptUserProject
-    dataDir <- EFS.getXdgDirectory EFS.XdgData $ "hpg" </> "data"
+    dataDir <- getDataDirPath
 
     let targetDir = T.unpack project.name
 
@@ -40,6 +40,17 @@ boot = runEff . EFS.runFileSystem . Console.runConsole $ do
         EFS.copyFile (dataDir </> ".gitignore") (targetDir </> ".gitignore")
         EFS.copyFile (dataDir </> "flake.nix") (targetDir </> "flake.nix")
         EFS.copyFile (dataDir </> ".envrc") (targetDir </> ".envrc")
+
+
+getDataDirPath :: (FileSystem :> es) => Eff es FilePath
+getDataDirPath = do
+    exists <- EFS.doesDirectoryExist "data"
+
+    if exists
+        then
+            pure "data"
+        else
+            EFS.getXdgDirectory EFS.XdgData $ "hpg" </> "data"
 
 
 type DataDir = FilePath
@@ -108,7 +119,7 @@ parseTemplate templateFile = do
 
 
 generateTemplate ::
-    (IOE :> es, FileSystem :> es, Reader AppEnv :> es) => FilePath -> FilePath -> Eff es ()
+    (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => FilePath -> FilePath -> Eff es ()
 generateTemplate sourceFile targetFile = do
     env <- R.ask @AppEnv
 
