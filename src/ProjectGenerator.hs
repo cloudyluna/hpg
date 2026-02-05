@@ -4,6 +4,7 @@ import Data.Aeson (Value, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString (StrictByteString)
 import Data.ByteString.Lazy qualified as BL
+import Data.Foldable ()
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -34,12 +35,15 @@ boot = runEff . EFS.runFileSystem . Console.runConsole $ do
         generateProjectCabal
         generateLicense
 
-        EFS.copyFile (dataDir </> "cabal.project") (targetDir </> "cabal.project")
-        EFS.copyFile (dataDir </> "fourmolu.yaml") (targetDir </> "fourmolu.yaml")
-        EFS.copyFile (dataDir </> "hie.yaml") (targetDir </> "hie.yaml")
-        EFS.copyFile (dataDir </> ".gitignore") (targetDir </> ".gitignore")
-        EFS.copyFile (dataDir </> "flake.nix") (targetDir </> "flake.nix")
-        EFS.copyFile (dataDir </> ".envrc") (targetDir </> ".envrc")
+        mapM_
+            (\filename -> EFS.copyFile (dataDir </> filename) (targetDir </> filename))
+            [ "cabal.project"
+            , "fourmolu.yaml"
+            , "hie.yaml"
+            , ".gitignore"
+            , "flake.nix"
+            , ".envrc"
+            ]
 
 
 getDataDirPath :: (FileSystem :> es) => Eff es FilePath
