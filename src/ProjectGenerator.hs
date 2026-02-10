@@ -25,7 +25,7 @@ import Prelude hiding (getLine)
 boot :: IO ()
 boot = runEff . EFS.runFileSystem . Console.runConsole $ do
     project <- promptUserProject
-    dataDir <- getDataDirPath
+    dataDir <- getDataDirPath "data"
 
     let targetDir = T.unpack project.name
 
@@ -37,24 +37,26 @@ boot = runEff . EFS.runFileSystem . Console.runConsole $ do
 
         mapM_
             (\filename -> EFS.copyFile (dataDir </> filename) (targetDir </> filename))
-            [ "cabal.project"
+            [ ".envrc"
+            , ".gitignore"
+            , "cabal.project"
             , "fourmolu.yaml"
             , "hie.yaml"
-            , ".gitignore"
             , "flake.nix"
-            , ".envrc"
             ]
 
 
-getDataDirPath :: (FileSystem :> es) => Eff es FilePath
-getDataDirPath = do
-    exists <- EFS.doesDirectoryExist "data"
+ifM :: (Monad m) => m Bool -> m a -> m a -> m a
+ifM p t f = p >>= \p' -> if p' then t else f
 
-    if exists
-        then
-            pure "data"
-        else
-            EFS.getXdgDirectory EFS.XdgData $ "hpg" </> "data"
+
+getDataDirPath :: (FileSystem :> es) => DataDir -> Eff es DataDir
+getDataDirPath dir = do
+    ifM
+        (EFS.doesDirectoryExist dir)
+        (pure dir)
+        . EFS.getXdgDirectory EFS.XdgData
+        $ "hpg" </> dir
 
 
 type DataDir = FilePath
