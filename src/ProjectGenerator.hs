@@ -34,6 +34,7 @@ boot = runEff . EFS.runFileSystem . Console.runConsole $ do
         generateTest
         generateProjectCabal
         generateLicense
+        generateMakefile
 
         mapM_
             (\filename -> EFS.copyFile (dataDir </> filename) (targetDir </> filename))
@@ -174,3 +175,14 @@ generateLicense = do
 
     EFS.createDirectoryIfMissing True targetDir
     generateTemplate "license.mustache" $ targetDir </> targetFilename
+
+
+generateMakefile :: (FileSystem :> es, IOE :> es, Reader AppEnv :> es) => Eff es ()
+generateMakefile = do
+    env <- R.ask @AppEnv
+
+    let targetDir = env.targetDir
+        targetFilename = "Makefile"
+
+    EFS.createDirectoryIfMissing True targetDir
+    generateTemplate "makefile.mustache" $ targetDir </> targetFilename

@@ -1,0 +1,13 @@
+DATADIR=$(XDG_DATA_HOME)
+BINDIR=$(HOME)/.local/bin
+PROJECT_NAME={{name}}
+
+all: repl
+
+repl:
+	ghciwatch --command "cabal repl lib:$(PROJECT_NAME)" \
+		--watch src --watch test \
+		--before-reload-shell "fourmolu --mode inplace src/$(PROJECT_NAME).hs"
+
+clean:
+	cabal clean
